@@ -1,0 +1,11 @@
+{
+  "id": "a7800",
+  "abi": 2,
+  "extensions": ["a78", "a7800"],
+  "width": 320,
+  "height": 222,
+  "max_rom_size": 147584,
+  "period_us": [50000, 3],
+  "defaults": [5, 6, 7, 8, 2, 3, 0, 1, 255, 255, 255, 255],
+  "action_mask": 255
+}

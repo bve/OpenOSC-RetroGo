@@ -1,0 +1,11 @@
+{
+  "id": "videopac",
+  "abi": 2,
+  "extensions": ["o2", "videopac"],
+  "width": 320,
+  "height": 240,
+  "max_rom_size": 24576,
+  "period_us": [50000, 3],
+  "defaults": [5, 6, 7, 8, 2, 3, 0, 1, 255, 255, 255, 255],
+  "action_mask": 511
+}

@@ -1,0 +1,10 @@
+{
+  "id": "pce",
+  "extensions": ["pce"],
+  "width": 256,
+  "height": 224,
+  "max_rom_size": 2621952,
+  "period_us": [16715100, 1000],
+  "defaults": [5, 6, 7, 8, 2, 3, 0, 1, 255, 255, 255, 255],
+  "action_mask": 255
+}

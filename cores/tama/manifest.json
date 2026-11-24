@@ -1,0 +1,10 @@
+{
+  "id": "tama",
+  "extensions": ["tama"],
+  "width": 128,
+  "height": 88,
+  "max_rom_size": 12288,
+  "period_us": [50000, 3],
+  "defaults": [255, 255, 7, 255, 2, 3, 255, 255, 255, 255, 255, 255],
+  "action_mask": 52
+}

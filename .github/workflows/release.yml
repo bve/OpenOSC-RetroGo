@@ -1,0 +1,147 @@
+name: Release OpenOSC-RetroGo
+
+on:
+  schedule:
+    - cron: "7,17,27,37,47,57 * * * *"
+  repository_dispatch:
+    types: [openosc-release]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  UPSTREAM_REPO: bve/OpenOSC
+
+jobs:
+  detect:
+    if: github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-24.04
+    outputs:
+      upstream-tag: ${{ steps.release.outputs.upstream-tag }}
+      upstream-commit: ${{ steps.release.outputs.upstream-commit }}
+      release-tag: ${{ steps.release.outputs.release-tag }}
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - name: Detect published OpenOSC release
+        id: release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_TAG: ${{ github.event.client_payload.tag }}
+        run: |
+          if [[ -z "$REQUESTED_TAG" ]]; then
+            endpoint="repos/$UPSTREAM_REPO/releases/latest"
+          else
+            [[ "$REQUESTED_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+            endpoint="repos/$UPSTREAM_REPO/releases/tags/$REQUESTED_TAG"
+          fi
+
+          upstream_tag=$(gh api "$endpoint" --jq 'select(.draft == false and .prerelease == false) | .tag_name')
+          port_version=$(tr -d '\r\n' < VERSION)
+          [[ "$upstream_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$port_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          release_tag="openosc-$upstream_tag-retrogo-v$port_version"
+
+          if draft=$(gh release view "$release_tag" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null) &&
+             [[ "$draft" == false ]]; then
+            echo "$release_tag is already published."
+            exit 0
+          fi
+
+          upstream_commit=$(gh api "repos/$UPSTREAM_REPO/commits/$upstream_tag" --jq .sha)
+          [[ "$upstream_commit" =~ ^[0-9a-f]{40}$ ]]
+          {
+            echo "upstream-tag=$upstream_tag"
+            echo "upstream-commit=$upstream_commit"
+            echo "release-tag=$release_tag"
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: detect
+    if: needs.detect.outputs.release-tag != ''
+    runs-on: ubuntu-24.04
+    concurrency:
+      group: release-build-${{ needs.detect.outputs.release-tag }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - name: Build both boards
+        shell: bash
+        env:
+          OPENOSC_TAG: ${{ needs.detect.outputs.upstream-tag }}
+          OPENOSC_COMMIT: ${{ needs.detect.outputs.upstream-commit }}
+        run: |
+          python3 -m venv "$RUNNER_TEMP/retrogo-venv"
+          source "$RUNNER_TEMP/retrogo-venv/bin/activate"
+          python -m pip install platformio==6.1.19
+
+          openosc="$RUNNER_TEMP/OpenOSC"
+          git -c advice.detachedHead=false clone --depth 1 --branch "$OPENOSC_TAG" \
+            "https://github.com/$UPSTREAM_REPO.git" "$openosc"
+          [[ "$(git -C "$openosc" rev-parse HEAD)" == "$OPENOSC_COMMIT" ]]
+          make -j"$(nproc)" OPENOSC="$openosc" OPENOSC_REF="$OPENOSC_COMMIT"
+
+      - name: Bundle source and verify checksums
+        shell: bash
+        env:
+          OPENOSC_COMMIT: ${{ needs.detect.outputs.upstream-commit }}
+        run: |
+          archive="$RUNNER_TEMP/release-sources.tar"
+          git archive --format=tar --prefix=OpenOSC-RetroGo/ "$GITHUB_SHA" > "$archive"
+          git -C "$RUNNER_TEMP/OpenOSC" archive --format=tar --prefix=OpenOSC/ \
+            "$OPENOSC_COMMIT" > "$RUNNER_TEMP/openosc-source.tar"
+          tar --concatenate --file="$archive" "$RUNNER_TEMP/openosc-source.tar"
+          gzip -n -c "$archive" > build/combined/dist/sources.tar.gz
+          cd build/combined/dist
+          sha256sum sources.tar.gz build.json >> SHA256SUMS
+          sha256sum -c SHA256SUMS
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-files
+          path: build/combined/dist/
+          if-no-files-found: error
+
+  publish:
+    needs: [detect, build]
+    runs-on: ubuntu-24.04
+    concurrency:
+      group: release-publish-${{ needs.detect.outputs.release-tag }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-files
+          path: dist
+      - name: Publish the verified release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OPENOSC_TAG: ${{ needs.detect.outputs.upstream-tag }}
+          RELEASE_TAG: ${{ needs.detect.outputs.release-tag }}
+        run: |
+          cd dist
+          sha256sum -c SHA256SUMS
+          if draft=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null); then
+            if [[ "$draft" == false ]]; then
+              echo "$RELEASE_TAG is already published."
+              exit 0
+            fi
+            gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA"
+          else
+            gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" --draft \
+              --title "OpenOSC $OPENOSC_TAG with Retro-Go $(jq -r .retrogo_version build.json)" \
+              --notes "Based on [OpenOSC $OPENOSC_TAG](https://github.com/$UPSTREAM_REPO/releases/tag/$OPENOSC_TAG). Install the combined .osc for your device using stock OpenOSC Recovery. Copy the desired .rgc modules to /openosc/games/cores."
+          fi
+          gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --clobber \
+            openosc-retro-go-zt703s.osc openosc-retro-go-zt706s.osc ./*.rgc \
+            sources.tar.gz build.json SHA256SUMS
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false

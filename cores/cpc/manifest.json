@@ -1,0 +1,11 @@
+{
+  "id": "cpc",
+  "abi": 2,
+  "extensions": ["dsk"],
+  "width": 320,
+  "height": 240,
+  "max_rom_size": 2097152,
+  "period_us": [19968, 1],
+  "defaults": [5, 6, 7, 8, 2, 3, 0, 1, 255, 255, 255, 255],
+  "action_mask": 255
+}

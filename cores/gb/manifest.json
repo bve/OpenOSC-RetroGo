@@ -1,0 +1,10 @@
+{
+  "id": "gb",
+  "extensions": ["gb", "gbc"],
+  "width": 160,
+  "height": 144,
+  "max_rom_size": 8388608,
+  "period_us": [68578125, 4096],
+  "defaults": [5, 6, 7, 8, 2, 3, 0, 1, 255, 255, 255, 255],
+  "action_mask": 255
+}

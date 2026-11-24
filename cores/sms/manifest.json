@@ -1,0 +1,11 @@
+{
+  "id": "sms",
+  "abi": 2,
+  "extensions": ["sms", "gg", "sg", "col"],
+  "width": 256,
+  "height": 192,
+  "max_rom_size": 4194816,
+  "period_us": [90299604, 5411],
+  "defaults": [5, 6, 7, 8, 2, 3, 0, 1, 255, 255, 255, 255],
+  "action_mask": 255
+}
