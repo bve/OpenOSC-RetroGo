@@ -83,7 +83,7 @@ The two combined packages, all built core modules, build provenance, and checksu
 
 ## Automated releases
 
-GitHub Actions checks for new stable OpenOSC releases every 10 minutes. It builds both board packages, verifies the release checksums, and publishes the packages with all core modules and source code. [Release workflow](.github/workflows/release.yml)
+GitHub Actions checks for new stable OpenOSC releases every 10 minutes and when the release workflow or `VERSION` changes on `main`. It builds both board packages, verifies the release checksums, and publishes the packages with all core modules and source code. [Release workflow](.github/workflows/release.yml)
 
 ## Licenses
 
